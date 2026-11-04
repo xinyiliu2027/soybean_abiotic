@@ -1,6 +1,0 @@
-numpy
-pandas
-scanpy
-scvelo
-matplotlib
-# Versions were not provided in the source documents; this is not a lockfile.
