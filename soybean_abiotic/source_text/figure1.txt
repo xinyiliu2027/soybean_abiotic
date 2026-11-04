@@ -1,0 +1,1320 @@
+##参考下面去除双细胞QC
+#!/usr/bin/env R
+library(Seurat)
+library(dplyr)
+library(DoubletFinder)
+
+folders<-c("Flower_ck1","Flower_ck2","Flower_inf_20h1","Flower_inf_20h2","Flower_mock_20hpt1","Flower_mock_20hpt2")
+for (i in folders){
+  a<-CreateSeuratObject(counts = Read10X(paste0("/public/home/houzy/sc-seq/Fve_Flowers/Fve_flower0.2/Seuratdata/",i),gene.column = 1),project = i, min.cells = 3, min.features = 200)
+  a<-RenameCells(a, add.cell.id =i)
+  a@meta.data$Group<-c(rep("Fve",ncol(a)))
+  a <-NormalizeData(a) %>% 
+    ScaleData(verbose = FALSE) %>% 
+    FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+    RunPCA(verbose = FALSE) %>% 
+    RunTSNE(dims=1:30) %>% 
+    RunUMAP(dims=1:30) %>%
+    FindNeighbors( dims = 1:30) %>%
+    FindClusters(resolution = 0.7)
+  #### Doubletfinder
+  sweep.res.list <- paramSweep(a, PCs = 1:30, sct = F,num.cores = 52)
+  sweep.stats <- summarizeSweep(sweep.res.list, GT = FALSE)  
+  bcmvn <- find.pK(sweep.stats)
+  pK_bcmvn <- bcmvn$pK[which.max(bcmvn$BCmetric)] %>% as.character() %>% as.numeric()
+  ## 排除不能检出的同源doublets，优化期望的doublets数量
+  annotations <- a@meta.data$seurat_clusters
+  homotypic.prop <- modelHomotypic(annotations)  
+  DoubletRate = ncol(a)*8*1e-6 #按每增加1000个细胞，双细胞比率增加千分之8来计???
+  #估计同源双细胞比例，根据modelHomotypic()中的参数人为混合双细胞。这里是从seurat_clusters中来混双细胞 
+  nExp_poi <- round(DoubletRate*length(a$seurat_clusters))  #最好提供celltype，而不是seurat_clusters???
+  # 计算双细胞比???
+  nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+  a <- doubletFinder(a, PCs = 1:30, pN = 0.25, pK = pK_bcmvn, nExp = nExp_poi.adj, reuse.pANN = FALSE, sct = F)
+  # 存储seurat对象
+  assign(paste0('Fve_',i),a)
+}
+
+
+save(Fve_Flower_ck1,Fve_Flower_ck2,Fve_Flower_inf_20h1,Fve_Flower_inf_20h2,Fve_Flower_mock_20hpt1,Fve_Flower_mock_20hpt2,file = "/public/home/houzy/sc-seq/Fve_Flowers/Fve_flower0.2/Seurat/01.QC/Fve_Flower.Rdata")
+##锚点注释
+library(Seurat)
+library(ggplot2)
+
+# 合并Seurat v5数据层
+Gm_CK_integrated <- JoinLayers(Gm_CK_integrated)
+cat("已执行JoinLayers，数据层已合并。\n")
+
+# 1. 基因列表（包含所有标记及新增/保留的Procambium）
+soy_genes <- c(
+  # Root Cap
+  "Glyma.08G161300", "Glyma.15G266500", "Glyma.10G022500",
+  # Lateral Root Cap
+  "Glyma.12G003200", "Glyma.09G233600",
+  # Cortex
+  "Glyma.05G103600", "Glyma.05G057500", "Glyma.17G140000",
+  "Glyma.04G091800", "Glyma.06G093600",
+  # Dividing Cell
+  "Glyma.15G040200",
+  # Lateral Root
+  "Glyma.04G252300", "Glyma.06G110200",
+  # Endodermis
+  "Glyma.13G307000", "Glyma.12G195500", "Glyma.12G195600", "Glyma.13G306900",
+  # Meristem
+  "Glyma.19G127200", "Glyma.12G021800", "Glyma.03G123600", 
+  "Glyma.11G084500", "Glyma.11G095700",
+  # Pericycle
+  "Glyma.11G036300", "Glyma.08G271600", "Glyma.13G090700",
+  # Xylem
+  "Glyma.10G205000", "Glyma.01G088300", "Glyma.20G185500",
+  # Phloem
+  "Glyma.08G163500", "Glyma.15G263700", "Glyma.12G234200",
+  # QC
+  "Glyma.18G244600", "Glyma.09G248200",
+  # Procambium (保留Pro-3，新增Pro-4)
+  "Glyma.06G256000",        # Pro-3
+  "Glyma.13G091600",        # Pro-4
+  # Epidermis marker (原位，显示ID)
+  "Glyma.11G147700",
+  # GmWRKY72
+  "Glyma.06G190800"
+)
+
+# 2. 基因映射（Procambium映射，表皮不映射）
+gene_mapping <- c(
+  "Glyma.08G161300" = "ANACO33-1",
+  "Glyma.15G266500" = "ANACO33-2",
+  "Glyma.10G022500" = "Glyma.10G022500", 
+  "Glyma.12G003200" = "BRN1-1",
+  "Glyma.09G233600" = "BRN1-2",
+  "Glyma.05G103600" = "Cortex-1",
+  "Glyma.05G057500" = "GmAZI5-1",
+  "Glyma.17G140000" = "GmAZI5-2",
+  "Glyma.04G091800" = "Cortex AED3-2",
+  "Glyma.06G093600" = "Cortex AED3-4",
+  "Glyma.15G040200" = "GmHTA12",
+  "Glyma.04G252300" = "GmLAX3-1",
+  "Glyma.06G110200" = "GmLAX3-2",
+  "Glyma.13G307000" = "GmPER3-1",
+  "Glyma.12G195500" = "GmPER3-2",
+  "Glyma.12G195600" = "GmPER39-1",
+  "Glyma.13G306900" = "GmPER39-2",
+  "Glyma.19G127200" = "GmCYCB1-2-1",
+  "Glyma.12G021800" = "GmUBC19-1",
+  "Glyma.03G123600" = "GmCYCB1-2-2",
+  "Glyma.11G084500" = "GmCYCB2-3",
+  "Glyma.11G095700" = "GmUBC19-2",
+  "Glyma.11G036300" = "GmNUDT8",
+  "Glyma.08G271600" = "Glyma.08G271600",
+  "Glyma.13G090700" = "Glyma.13G090700",
+  "Glyma.10G205000" = "GmBHLH30-1",
+  "Glyma.01G088300" = "GmBHLH30-2",
+  "Glyma.20G185500" = "GmBHLH30-3",
+  "Glyma.08G163500" = "GmAPL-1",
+  "Glyma.15G263700" = "GmAPL-2",
+  "Glyma.12G234200" = "GmTPS1",
+  "Glyma.18G244600" = "BBM-2",
+  "Glyma.09G248200" = "BBM-3",
+  # Procambium
+
+  # 表皮不映射，保留ID
+  "Glyma.06G190800" = "GmWRKY72"
+)
+
+# 原位基因（绿色星号）
+in_situ_genes <- c(
+  "Glyma.05G103600", "Glyma.15G040200", "Glyma.12G234200",
+  "Glyma.08G163500", "Glyma.10G022500", "Glyma.11G147700"
+)
+
+# 检查可用基因
+available_genes <- soy_genes[soy_genes %in% rownames(Gm_CK_integrated)]
+cat("匹配的基因数量:", length(available_genes), "\n")
+
+# 3. 设置cluster
+DefaultAssay(Gm_CK_integrated) <- "RNA"
+cluster_order <- c("11", "7", "6", "5", "14", "9", "8", "15", "10", "13", 
+                   "18", "17", "0", "4", "12", "3", "1", "2", "16")
+Gm_CK_integrated@meta.data$seurat_clusters <- factor(
+  Gm_CK_integrated@meta.data$seurat_clusters, levels = cluster_order
+)
+
+# 4. 细胞类型分组（仅用于分类）
+cell_types <- list(
+  "QC (静止中心)" = c("Glyma.18G244600", "Glyma.09G248200"),
+  "根冠 (Root Cap)" = c("Glyma.08G161300", "Glyma.15G266500", "Glyma.10G022500"),
+  "侧根冠 (Lateral Root Cap)" = c("Glyma.12G003200", "Glyma.09G233600"),
+  "皮层 (Cortex)" = c("Glyma.05G103600", "Glyma.05G057500", "Glyma.17G140000",
+                    "Glyma.04G091800", "Glyma.06G093600"),
+  "分裂细胞 (Dividing Cell)" = c("Glyma.15G040200"),
+  "侧根 (Lateral Root)" = c("Glyma.04G252300", "Glyma.06G110200"),
+  "内皮层 (Endodermis)" = c("Glyma.13G307000", "Glyma.12G195500", "Glyma.12G195600", "Glyma.13G306900"),
+  "分生组织 (Meristem)" = c("Glyma.19G127200", "Glyma.12G021800", "Glyma.03G123600", 
+                        "Glyma.11G084500", "Glyma.11G095700"),
+  "中柱鞘 (Pericycle)" = c("Glyma.11G036300", "Glyma.08G271600", "Glyma.13G090700"),
+  "木质部 (Xylem)" = c("Glyma.10G205000", "Glyma.01G088300", "Glyma.20G185500"),
+  "韧皮部 (Phloem)" = c("Glyma.08G163500", "Glyma.15G263700","Glyma.12G234200")
+)
+
+# 5. 生成初始排序：非皮层在前，皮层在底部
+cortex_genes <- cell_types[["皮层 (Cortex)"]]
+cortex_avail <- intersect(cortex_genes, available_genes)
+non_cortex_avail <- setdiff(available_genes, cortex_avail)
+reordered_genes <- c(non_cortex_avail, cortex_avail)
+
+# ========== 调整基因顺序 ==========
+# 已有顺序：... GmLAX3-2 (Glyma.06G110200), GmPER3-1 (Glyma.13G307000) ...
+# 将 Pro-3 和 Pro-4 插入到 GmLAX3-2 之后，GmPER3-1 之前
+lax3_2 <- "Glyma.06G110200"
+per3_1 <- "Glyma.13G307000"
+pro3 <- "Glyma.06G256000"
+pro4 <- "Glyma.13G091600"
+target_genes <- c(pro3, pro4)
+
+if (all(c(lax3_2, per3_1, pro3, pro4) %in% reordered_genes)) {
+  # 先从列表中移除这两个基因（保持原顺序）
+  reordered_genes <- reordered_genes[!reordered_genes %in% target_genes]
+  # 找到 lax3_2 的位置
+  pos_lax <- which(reordered_genes == lax3_2)
+  # 将两个基因插入到 lax3_2 之后（即 pos_lax + 1）
+  # 先插入 pro3，再插入 pro4，顺序可自定（此处按pro3, pro4）
+  reordered_genes <- append(reordered_genes, pro3, after = pos_lax)
+  pos_pro3 <- which(reordered_genes == pro3)
+  reordered_genes <- append(reordered_genes, pro4, after = pos_pro3)
+}
+
+# 额外保留之前的顺序：BRN1-2 -> GmWRKY72 -> Glyma.11G147700 -> GmHTA12
+# 这段已经在上次调整中实现，此处再次执行（以防被覆盖）
+brn1_2 <- "Glyma.09G233600"
+wrky72 <- "Glyma.06G190800"
+epi_marker <- "Glyma.11G147700"
+if (all(c(brn1_2, wrky72, epi_marker) %in% reordered_genes)) {
+  # 如果它们顺序不对，可重新调整
+  # 但因为我们没有改变这些基因，通常顺序依然保持，为了安全，再执行一次
+  reordered_genes <- reordered_genes[!reordered_genes %in% c(wrky72, epi_marker)]
+  pos_brn <- which(reordered_genes == brn1_2)
+  reordered_genes <- append(reordered_genes, wrky72, after = pos_brn)
+  pos_wrky <- which(reordered_genes == wrky72)
+  reordered_genes <- append(reordered_genes, epi_marker, after = pos_wrky)
+}
+
+# 6. 创建基因标签（原位加星号）
+gene_labels <- sapply(reordered_genes, function(g) {
+  label <- gene_mapping[g]
+  if (is.na(label)) label <- g
+  if (g %in% in_situ_genes) label <- paste0(label, " *")
+  return(label)
+})
+names(gene_labels) <- reordered_genes
+
+# 原位颜色和字体
+label_colors <- sapply(gene_labels, function(l) if(grepl("\\*$", l)) "green" else "black")
+label_faces <- sapply(gene_labels, function(l) if(grepl("\\*$", l)) "bold" else "plain")
+
+# 7. 设置细胞类型元数据（用于分组）
+cluster_to_celltype <- c(
+  "0" = "Cortex", "1" = "Cortex", "2" = "QC", "3" = "Cortex", "4" = "Cortex",
+  "5" = "Procambium", "6" = "Dividing Cell", "7" = "Root Cap", "8" = "Meristem",
+  "9" = "Endodermis", "10" = "Pericycle", "11" = "Epidermis", "12" = "Cortex",
+  "13" = "Pericycle", "14" = "Procambium", "15" = "Meristem", "16" = "Cortex",
+  "17" = "Phloem", "18" = "Xylem"
+)
+Gm_CK_integrated@meta.data$cell_type <- cluster_to_celltype[as.character(Gm_CK_integrated@meta.data$seurat_clusters)]
+celltype_order <- c("Root Cap", "Epidermis", "Dividing Cell", "Procambium",
+                    "Endodermis", "Meristem", "Pericycle", "Xylem", "Phloem", "QC", "Cortex")
+Gm_CK_integrated@meta.data$cell_type <- factor(Gm_CK_integrated@meta.data$cell_type, levels = celltype_order)
+
+# ======================== 横向版本（基因在x轴，细胞类型在y轴） ========================
+# 去除 coord_flip()，即为横向
+p_horizontal <- DotPlot(Gm_CK_integrated, features = reordered_genes, group.by = "cell_type") +
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(size = 12, color = label_colors, face = label_faces, angle = 45, hjust = 1, vjust = 1),
+    axis.text.y = element_text(size = 14, color = "black"),
+    axis.title = element_text(size = 18, color = "black"),
+    plot.title = element_text(size = 20, color = "black", hjust = 0.5),
+    legend.title = element_text(size = 16, color = "black"),
+    legend.text = element_text(size = 14, color = "black"),
+    plot.margin = margin(t = 20, r = 20, b = 40, l = 20, unit = "pt")
+  ) +
+  scale_color_gradientn(values = seq(0,1,0.2), colours = c("#FEEDB0","#F5A773","#E26253","#B32E5F","#721A60","#2F0F3E")) +
+  labs(x = NULL, y = NULL, title = "大豆根尖细胞标记基因 (横向)") +
+  guides(size = guide_legend(order = 3)) +
+  scale_x_discrete(labels = gene_labels) +
+  scale_y_discrete(limits = celltype_order, labels = celltype_order) +
+  scale_size(range = c(1, 6))
+
+# 保存横向版本（图幅缩小，宽度12，高度6）
+ggsave("DotPlot_horizontal.pdf", plot = p_horizontal, width = 12, height = 6, device = "pdf")
+print(p_horizontal)
+
+# ======================== （可选）纵向版本，如需要可取消注释 ========================
+ p_vertical <- DotPlot(Gm_CK_integrated, features = reordered_genes, group.by = "cell_type") +
+   coord_flip() +
+   theme_bw() +
+   theme(
+     panel.grid = element_blank(),
+     axis.text.x = element_text(size = 14, color = "black", angle = 45, hjust = 1),
+     axis.text.y = element_text(size = 12, color = label_colors, face = label_faces, margin = margin(r = 5)),
+     axis.title = element_text(size = 18, color = "black"),
+     plot.title = element_text(size = 20, color = "black", hjust = 0.5),
+     legend.title = element_text(size = 16, color = "black"),
+     legend.text = element_text(size = 14, color = "black"),
+     plot.margin = margin(t = 20, r = 20, b = 40, l = 120, unit = "pt")
+   ) +
+   scale_color_gradientn(values = seq(0,1,0.2), colours = c("#FEEDB0","#F5A773","#E26253","#B32E5F","#721A60","#2F0F3E")) +
+   labs(x = NULL, y = NULL, title = "大豆根尖细胞标记基因 (纵向)") +
+   guides(size = guide_legend(order = 3)) +
+   scale_x_discrete(labels = gene_labels) +
+   scale_y_discrete(limits = celltype_order, labels = celltype_order)
+ ggsave("DotPlot_vertical.pdf", plot = p_vertical, width = 8, height = 10, device = "pdf")
+ print(p_vertical)
+
+# 统计信息
+cat("\n基因顺序（从x轴左到右）:\n")
+cat(paste(gene_labels, collapse = " -> "), "\n")
+cat("\nProcambium基因已插入到侧根基因 GmLAX3-2 之后、内皮层基因 GmPER3-1 之前。\n")
+cat("横向版本已保存为 DotPlot_horizontal.pdf (宽12英寸，高6英寸)\n")
+
+
+##转移锚点
+
+# 加载 qs 包
+library(qs)
+
+# 读取 reference_renamed.qs 文件
+reference_renamed <- qread("~/reference_renamed.qs")
+# 查看包含Gm的对象
+gm_objects <- ls(pattern = "Gm")
+print("Objects containing 'Gm':")
+print(gm_objects)
+
+# 创建重命名映射（移除了最后的多余逗号）
+rename_map <- c(
+  "Gm_1031_N327F" = "eBL1",
+  "Gm_2213_eBL" = "eBL2", 
+  "Gm_2224_8.37temp" = "highTemp1",
+  "Gm_2225_9.6Temp" = "highTemp2",
+  "Gm_2226_9.6Temp" = "lowTemp1",
+  "Gm_2227_9.6Temp" = "lowTemp2",
+  "Gm_2214_SA" = "SA1",
+  "Gm_2215_SA" = "SA2",
+  "Gm_2216_MEJA" = "MEJA1",
+  "Gm_2217_MEJA" = "MEJA2",
+  "Gm_2218_ABA" = "ABA1",
+  "Gm_2219_ABA" = "ABA2",
+  "Gm_2222_PEG" = "PEG1",
+  "Gm_2223_PEG" = "PEG2",
+  "Gm_2220_IAA" = "IAA1",
+  "Gm_2221_IAA" = "IAA2"
+)
+
+# 处理所有Gm对象
+for (old_name in gm_objects) {
+  # 检查是否需要删除CK对象
+  if (old_name %in% c("Gm_2228_CK", "Gm_2229_CK")) {
+    rm(list = old_name)
+    cat("Removed:", old_name, "\n")
+  } 
+  # 检查是否在重命名映射中
+  else if (old_name %in% names(rename_map)) {
+    new_name <- rename_map[old_name]
+    assign(new_name, get(old_name))
+    rm(list = old_name)
+    cat("Renamed:", old_name, "->", new_name, "\n")
+  }
+}
+
+# 查看处理后的对象
+print("\nObjects after processing:")
+seurat_objects <- ls()[sapply(ls(), function(x) class(get(x))[1] == "Seurat")]
+print(seurat_objects)
+
+
+# 获取所有Seurat对象
+seurat_objects <- ls()[sapply(ls(), function(x) class(get(x))[1] == "Seurat")]
+print("Current Seurat objects:")
+print(seurat_objects)
+# 检查所有对象的meta.data列名，寻找可能的双细胞信息
+for (obj_name in seurat_objects) {
+  obj <- get(obj_name)
+  
+  cat("\n=== Checking", obj_name, "===\n")
+  
+  # 获取所有列名
+  col_names <- colnames(obj@meta.data)
+  
+  # 查找可能包含双细胞信息的列
+  doublet_cols <- grep("doublet|DF|DoubletFinder", col_names, ignore.case = TRUE, value = TRUE)
+  classification_cols <- grep("classification", col_names, ignore.case = TRUE, value = TRUE)
+  singlet_cols <- grep("singlet", col_names, ignore.case = TRUE, value = TRUE)
+  
+  if (length(doublet_cols) > 0) {
+    cat("Found doublet-related columns:", paste(doublet_cols, collapse = ", "), "\n")
+  }
+  if (length(classification_cols) > 0) {
+    cat("Found classification columns:", paste(classification_cols, collapse = ", "), "\n")
+  }
+  if (length(singlet_cols) > 0) {
+    cat("Found singlet-related columns:", paste(singlet_cols, collapse = ", "), "\n")
+  }
+  
+  # 显示所有列名（如果数量不多的话）
+  if (length(col_names) <= 20) {
+    cat("All meta.data columns:", paste(col_names, collapse = ", "), "\n")
+  } else {
+    cat("Total columns:", length(col_names), "\n")
+    cat("First 10 columns:", paste(head(col_names, 10), collapse = ", "), "\n")
+    cat("Last 10 columns:", paste(tail(col_names, 10), collapse = ", "), "\n")
+  }
+}
+
+
+
+# 移除所有样本的双细胞
+
+# 移除所有样本的双细胞 - 修正版
+for (obj_name in seurat_objects) {
+  obj <- get(obj_name)
+  
+  cat("\n=== Processing", obj_name, "===\n")
+  cat("Original cells:", ncol(obj), "\n")
+  
+  # 查找DF.classifications列（每个对象的列名不同）
+  df_col <- grep("^DF\\.classifications", colnames(obj@meta.data), value = TRUE)
+  
+  if (length(df_col) > 0) {
+    cat("Found doublet column:", df_col, "\n")
+    print(table(obj@meta.data[[df_col]]))
+    
+    # 移除双细胞，只保留Singlet - 修正的语法
+    cells_to_keep <- rownames(obj@meta.data)[obj@meta.data[[df_col]] == "Singlet"]
+    obj_filtered <- obj[, cells_to_keep]
+    
+    cat("After removing doublets:", ncol(obj_filtered), "cells\n")
+    cat("Removed", ncol(obj) - ncol(obj_filtered), "doublets\n")
+    
+    # 更新对象
+    assign(obj_name, obj_filtered)
+    
+  } else {
+    cat("No doublet information found\n")
+  }
+}
+
+# 显示处理后的结果
+cat("\n=== Summary after doublet removal ===\n")
+for (obj_name in seurat_objects) {
+  obj <- get(obj_name)
+  cat(obj_name, ":", ncol(obj), "cells\n")
+}
+
+# 清理环境
+rm(obj, obj_filtered, df_col, cells_to_keep)
+rm(reference_renamed)
+
+# 加载必要的包
+library(Seurat)
+library(dplyr)
+library(patchwork)
+
+# 加载参考数据
+reference_renamed <- qread("~/reference_renamed.qs")
+
+# 将所有处理后的样本放入列表
+hormone.list <- list()
+for (obj_name in seurat_objects) {
+  hormone.list[[obj_name]] <- get(obj_name)
+}
+
+# 检查参考数据
+cat("Reference object info:\n")
+cat("Cells:", ncol(reference_renamed), "\n")
+cat("Features:", nrow(reference_renamed), "\n")
+cat("Cell types:", length(unique(reference_renamed$cell_type)), "\n")
+
+# 对每个查询数据集进行标准预处理
+cat("\n=== Preprocessing query datasets ===\n")
+for (i in 1:length(hormone.list)) {
+  cat("Processing", names(hormone.list)[i], "\n")
+  hormone.list[[i]] <- NormalizeData(hormone.list[[i]], verbose = FALSE) %>% 
+    FindVariableFeatures(verbose = FALSE) %>% 
+    SCTransform(variable.features.n = 3000,
+                method = "glmGamPoi",
+                verbose = FALSE)
+}
+
+# 准备参考数据
+cat("\n=== Preparing reference dataset ===\n")
+DefaultAssay(reference_renamed) <- "RNA"
+reference_renamed <- JoinLayers(reference_renamed)
+
+reference <- reference_renamed
+
+reference <- SCTransform(reference,
+                         variable.features.n = 3000,
+                         method = "glmGamPoi",
+                         verbose = FALSE)
+
+# 为参考数据运行PCA和UMAP（返回模型用于映射）
+reference <- RunPCA(reference, verbose = FALSE)
+reference <- RunUMAP(reference, reduction = "pca", dims = 1:50, 
+                     umap.method = "umap-learn", return.model = TRUE,
+                     verbose = FALSE)
+
+DefaultAssay(reference) <- "RNA"
+
+cat("Reference preparation completed!\n")
+
+
+rm(SA1)
+cat("\n=== Performing anchor integration and label transfer ===\n")
+
+# 对每个查询数据集进行标签转移
+# 对每个查询数据集进行标签转移
+for (i in names(hormone.list)) {
+  cat("\n--- Processing", i, "---\n")
+  
+  # 提取查询数据集
+  query <- hormone.list[[i]]
+  
+  # 确保查询数据集的默认assay是SCT
+  DefaultAssay(query) <- "SCT"
+  DefaultAssay(reference) <- "SCT"
+  
+  # 使用 FindTransferAnchors 找到参考和查询数据集之间的锚点
+  # 使用SCT assay但避免重新计算SCT模型
+  anchors <- FindTransferAnchors(
+    reference = reference,
+    query = query,
+    reference.assay = "SCT",
+    query.assay = "SCT",
+    normalization.method = "SCT",
+    recompute.residuals = FALSE,
+    dims = 1:50,
+    reference.reduction = "pca"
+  )
+  
+  # 使用 TransferData 迁移注释
+  predictions <- TransferData(
+    anchorset = anchors,
+    refdata = reference$cell_type,  # 迁移参考数据集的细胞类型
+    dims = 1:50,
+    weight.reduction = "pcaproject"
+  )
+  
+  # 将迁移的注释添加到查询数据集的 metadata 中
+  query <- AddMetaData(query, metadata = predictions$predicted.id, col.name = "cell_type")
+  
+  # UMAP transfer
+  map_query <- MapQuery(
+    anchorset = anchors, 
+    reference = reference, 
+    query = query, 
+    refdata = list(celltype = "cell_type"), 
+    reference.reduction = "pca", 
+    reduction.model = "umap"
+  )
+  
+  query@reductions$umap <- map_query@reductions$ref.umap
+  
+  # 更新列表中的 Seurat 对象
+  hormone.list[[i]] <- query
+  
+  cat("Completed annotation for", i, "\n")
+}
+
+cat("\nLabel transfer completed for all samples!\n")
+
+# 首先合并参考数据集和第一个查询数据集
+clean_with_joinlayers <- function() {
+  cat("\n=== Alternative: Using JoinLayers ===\n")
+  
+  # Clean each object
+  reference_joined <- JoinLayers(reference)
+  hormone_joined <- lapply(hormone.list, JoinLayers)
+  names(hormone_joined) <- names(hormone.list)
+  
+  # Try merge
+  merged_joined <- merge(x = reference_joined, 
+                         y = hormone_joined, 
+                         add.cell.ids = c("ref", names(hormone_joined)))
+  
+  return(merged_joined)
+}
+
+##merge仍然有问题进行尝试
+# 检查实际的样本数量
+cat("Reference object name: reference\n")
+cat("Hormone samples:", names(hormone.list), "\n")
+cat("Total samples:", length(hormone.list), "\n")
+
+# 正确的样本名称（去掉SA1, SA2）
+sample_names <- c("REF", names(hormone.list))
+cat("Corrected sample names:", sample_names, "\n")
+# 首先检查第一个样本的metadata结构
+cat("Checking metadata columns in first sample:\n")
+print(colnames(hormone.list[[1]]@meta.data))
+
+# 检查可用的分组列
+cat("\nFirst few rows of metadata:\n")
+print(head(hormone.list[[1]]@meta.data))
+
+# 检查是否有预测相关的列
+predicted_cols <- grep("predict", colnames(hormone.list[[1]]@meta.data), value = TRUE, ignore.case = TRUE)
+cat("\nColumns containing 'predict':\n")
+print(predicted_cols)
+
+# 检查是否有标签相关的列
+label_cols <- grep("label", colnames(hormone.list[[1]]@meta.data), value = TRUE, ignore.case = TRUE)
+cat("\nColumns containing 'label':\n")
+print(label_cols)
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+
+# 1. 为每个样本创建dimplot（包含REF）
+sample_names <- c("REF", "ABA1", "ABA2", "eBL1", "eBL2", "highTemp1", "highTemp2", 
+                  "IAA1", "IAA2", "lowTemp1", "lowTemp2", "MEJA1", "MEJA2", 
+                  "PEG1", "PEG2", "SA1", "SA2")
+
+# 创建包含REF的样本列表
+all_samples <- c(list(reference), hormone.list)
+names(all_samples) <- sample_names
+
+# 使用 cell_type 列进行分组
+group_by_col <- "cell_type"
+cat("Using", group_by_col, "for grouping\n")
+
+# 创建dimplot列表
+dimplot_list <- list()
+
+for(i in 1:length(all_samples)) {
+  sample_name <- sample_names[i]
+  
+  # 检查该样本是否有UMAP
+  if(!"umap" %in% names(all_samples[[i]]@reductions)) {
+    cat("Warning: No UMAP found for", sample_name, ", skipping...\n")
+    next
+  }
+  
+  # 检查是否有cell_type列
+  if(!group_by_col %in% colnames(all_samples[[i]]@meta.data)) {
+    cat("Warning: No", group_by_col, "found for", sample_name, ", using seurat_clusters\n")
+    current_group_col <- "seurat_clusters"
+  } else {
+    current_group_col <- group_by_col
+  }
+  
+  # 创建dimplot
+  p <- DimPlot(all_samples[[i]], 
+               reduction = "umap", 
+               group.by = current_group_col,
+               label = TRUE, 
+               label.size = 3,
+               pt.size = 0.5) +
+    ggtitle(sample_name) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, size = 14))
+  
+  dimplot_list[[i]] <- p
+  
+  cat("Created dimplot for", sample_name, "\n")
+}
+
+# 移除NULL元素（如果有的话）
+dimplot_list <- dimplot_list[!sapply(dimplot_list, is.null)]
+
+# 2. 组合显示所有dimplot
+if(length(dimplot_list) > 0) {
+  # 计算合适的行列数
+  n_plots <- length(dimplot_list)
+  n_cols <- 4
+  n_rows <- ceiling(n_plots / n_cols)
+  
+  combined_plot <- wrap_plots(dimplot_list, ncol = n_cols)
+  
+  # 保存组合图
+  ggsave("all_samples_with_ref_dimplot.pdf", combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows)
+  ggsave("all_samples_with_ref_dimplot.png", combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows, dpi = 300)
+  
+  cat("Saved combined dimplot with", n_plots, "samples (including REF)\n")
+  
+  # 显示图片
+  print(combined_plot)
+} else {
+  cat("No valid dimplots created\n")
+}
+
+# 3. 合并所有样本（包含REF）
+cat("\nMerging all samples including REF...\n")
+
+# 为每个样本添加样本标识
+for(i in 1:length(all_samples)) {
+  all_samples[[i]]$sample_id <- sample_names[i]
+  all_samples[[i]]$orig.ident <- sample_names[i]
+  
+  # 确保所有样本都有相同的metadata列
+  if(!"cell_type" %in% colnames(all_samples[[i]]@meta.data) && 
+     sample_names[i] == "REF") {
+    # 如果REF没有cell_type列，可能需要从其他列获取或使用聚类信息
+    if("predicted.celltype" %in% colnames(all_samples[[i]]@meta.data)) {
+      all_samples[[i]]$cell_type <- all_samples[[i]]$predicted.celltype
+    } else if("annotation" %in% colnames(all_samples[[i]]@meta.data)) {
+      all_samples[[i]]$cell_type <- all_samples[[i]]$annotation
+    } else {
+      all_samples[[i]]$cell_type <- paste0("Cluster_", all_samples[[i]]$seurat_clusters)
+    }
+  }
+}
+
+# 合并所有样本
+merged_seurat_with_ref <- merge(x = all_samples[[1]], 
+                                y = all_samples[2:length(all_samples)], 
+                                add.cell.ids = sample_names,
+                                project = "HormoneStress_with_REF")
+
+cat("Successfully merged", length(all_samples), "samples (including REF)\n")
+cat("Total cells in merged object:", ncol(merged_seurat_with_ref), "\n")
+
+# 4. 为合并后的对象重新计算降维(这一步需要吗)
+cat("\nProcessing merged object with REF...\n")
+
+# 标准化和缩放
+merged_seurat_with_ref <- NormalizeData(merged_seurat_with_ref, verbose = FALSE)
+merged_seurat_with_ref <- FindVariableFeatures(merged_seurat_with_ref, verbose = FALSE)
+merged_seurat_with_ref <- ScaleData(merged_seurat_with_ref, verbose = FALSE)
+
+# 降维
+merged_seurat_with_ref <- RunPCA(merged_seurat_with_ref, verbose = FALSE)
+merged_seurat_with_ref <- RunUMAP(merged_seurat_with_ref, dims = 1:30, verbose = FALSE)
+
+# 5. 创建合并后的dimplot
+# 按样本分组
+p1 <- DimPlot(merged_seurat_with_ref, 
+              reduction = "umap", 
+              group.by = "orig.ident",
+              label = TRUE,
+              pt.size = 0.3) +
+  ggtitle("All Samples (including REF) - Grouped by Sample") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14))
+
+# 按细胞类型分组
+p2 <- DimPlot(merged_seurat_with_ref, 
+              reduction = "umap", 
+              group.by = "cell_type",
+              label = TRUE,
+              pt.size = 0.3) +
+  ggtitle("All Samples (including REF) - Grouped by Cell Type") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14))
+
+# 创建一个突出显示REF vs 其他样本的图
+merged_seurat_with_ref$sample_type <- ifelse(merged_seurat_with_ref$orig.ident == "REF", 
+                                             "Reference", "Treatment")
+
+p3 <- DimPlot(merged_seurat_with_ref, 
+              reduction = "umap", 
+              group.by = "sample_type",
+              cols = c("Reference" = "red", "Treatment" = "lightblue"),
+              pt.size = 0.3) +
+  ggtitle("Reference vs Treatment Samples") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14))
+
+# 组合图
+merged_plot_with_ref <- (p1 | p3) / p2
+
+# 保存合并后的图
+ggsave("merged_samples_with_ref_dimplot.pdf", merged_plot_with_ref, 
+       width = 16, height = 12)
+ggsave("merged_samples_with_ref_dimplot.png", merged_plot_with_ref, 
+       width = 16, height = 12, dpi = 300)
+
+# 显示图
+print(merged_plot_with_ref)
+
+
+# 保存合并后的Seurat对象
+saveRDS(merged_seurat_with_ref, file = "merged_seurat_with_ref.rds")
+
+
+
+
+####修改split umap的配色
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+
+# 自定义颜色配置
+custom_colors <- c(
+  "Cortex" = "#a2d2e7",           # 蓝色
+  "Dividing Cell" = "#67a8cd",    # 浅蓝色
+  "Endodermis" = "#ffc17f",       # 黄色
+  "Epidermis" = "#cf9f88",        # 橙色
+  "Lateral Root" = "#6fb3a8",     # 绿色
+  "Meristem" = "#b3e19b",         # 浅绿色
+  "Pericycle" = "#50aa4b",        # 深绿色
+  "Phloem" = "#ff9d9f",           # 粉色
+  "QC" = "#f36569",               # 红色
+  "Root Cap" = "#3581b7",         # 蓝色
+  "Xylem" = "#cdb6da"             # 浅紫色
+)
+
+# 1. 为每个样本创建dimplot（包含REF）- 使用自定义颜色
+sample_names <- c("REF", "ABA1", "ABA2", "eBL1", "eBL2", "highTemp1", "highTemp2", 
+                  "IAA1", "IAA2", "lowTemp1", "lowTemp2", "MEJA1", "MEJA2", 
+                  "PEG1", "PEG2", "SA1", "SA2")
+
+# 创建包含REF的样本列表
+all_samples <- c(list(reference), hormone.list)
+names(all_samples) <- sample_names
+
+# 使用 cell_type 列进行分组
+group_by_col <- "cell_type"
+cat("Using", group_by_col, "for grouping\n")
+
+# 创建dimplot列表
+dimplot_list <- list()
+for(i in 1:length(all_samples)) {
+  sample_name <- sample_names[i]
+  
+  # 检查该样本是否有UMAP
+  if(!"umap" %in% names(all_samples[[i]]@reductions)) {
+    cat("Warning: No UMAP found for", sample_name, ", skipping...\n")
+    next
+  }
+  
+  # 检查是否有cell_type列
+  if(!group_by_col %in% colnames(all_samples[[i]]@meta.data)) {
+    cat("Warning: No", group_by_col, "found for", sample_name, ", using seurat_clusters\n")
+    current_group_col <- "seurat_clusters"
+  } else {
+    current_group_col <- group_by_col
+  }
+  
+  # 创建dimplot - 添加自定义颜色
+  p <- DimPlot(all_samples[[i]], 
+               reduction = "umap", 
+               group.by = current_group_col,
+               label = TRUE, 
+               label.size = 3,
+               pt.size = 0.5,
+               cols = custom_colors) +  # 添加自定义颜色
+    ggtitle(sample_name) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, size = 14))
+  
+  dimplot_list[[i]] <- p
+  
+  cat("Created dimplot for", sample_name, "\n")
+}
+
+# 移除NULL元素（如果有的话）
+dimplot_list <- dimplot_list[!sapply(dimplot_list, is.null)]
+
+# 2. 组合显示所有dimplot
+if(length(dimplot_list) > 0) {
+  # 计算合适的行列数
+  n_plots <- length(dimplot_list)
+  n_cols <- 4
+  n_rows <- ceiling(n_plots / n_cols)
+  
+  combined_plot <- wrap_plots(dimplot_list, ncol = n_cols)
+  
+  # 保存组合图
+  ggsave("all_samples_with_ref_dimplot_custom_colors.pdf", combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows)
+  ggsave("all_samples_with_ref_dimplot_custom_colors.png", combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows, dpi = 300)
+  
+  cat("Saved individual sample plots with custom colors\n")
+}
+
+# 3. 合并样本功能
+# 合并样本的代码修改版本
+# 定义颜色配置
+rm(umap_plots)
+
+# 如果你想要更快的处理，可以尝试以下简化版本（跳过重新聚类）
+# 这个版本只运行必要的步骤来生成UMAP
+
+# 简化版本的合并代码（可选）
+merge_samples_fast <- function() {
+  merged_samples_fast <- list()
+  
+  for(i in 1:length(merge_pairs)) {
+    merged_name <- names(merge_pairs)[i]
+    sample_pair <- merge_pairs[[i]]
+    
+    if(all(sample_pair %in% names(all_samples))) {
+      sample1 <- all_samples[[sample_pair[1]]]
+      sample2 <- all_samples[[sample_pair[2]]]
+      
+      if("umap" %in% names(sample1@reductions) && "umap" %in% names(sample2@reductions)) {
+        # 合并样本
+        merged_sample <- merge(sample1, sample2, 
+                               add.cell.ids = sample_pair,
+                               project = merged_name)
+        
+        cat("Processing", merged_name, "with fast workflow...\n")
+        
+        # 只运行必要的步骤
+        merged_sample <- NormalizeData(merged_sample, verbose = FALSE)
+        merged_sample <- FindVariableFeatures(merged_sample, verbose = FALSE)
+        merged_sample <- ScaleData(merged_sample, verbose = FALSE)
+        merged_sample <- RunPCA(merged_sample, verbose = FALSE)
+        merged_sample <- RunUMAP(merged_sample, dims = 1:30, verbose = FALSE)
+        
+        merged_samples_fast[[merged_name]] <- merged_sample
+        cat("Successfully processed", merged_name, "\n")
+      }
+    }
+  }
+  
+  return(merged_samples_fast)
+}
+
+# 如果你想使用快速版本，运行：
+# merged_samples <- merge_samples_fast()
+# 定义需要合并的样本对
+merge_pairs <- list(
+  "ABA" = c("ABA1", "ABA2"),
+  "eBL" = c("eBL1", "eBL2"), 
+  "highTemp" = c("highTemp1", "highTemp2"),
+  "IAA" = c("IAA1", "IAA2"),
+  "lowTemp" = c("lowTemp1", "lowTemp2"),
+  "MEJA" = c("MEJA1", "MEJA2"),
+  "PEG" = c("PEG1", "PEG2"),
+  "SA" = c("SA1", "SA2")
+)
+
+# 创建合并后的样本对象
+merged_samples <- list()
+merged_samples[["REF"]] <- all_samples[["REF"]]  # 添加参考样本
+
+for(merged_name in names(merge_pairs)) {
+  sample_pair <- merge_pairs[[merged_name]]
+  
+  # 检查两个样本是否都存在
+  if(all(sample_pair %in% names(all_samples))) {
+    # 获取两个样本
+    sample1 <- all_samples[[sample_pair[1]]]
+    sample2 <- all_samples[[sample_pair[2]]]
+    
+    # 检查两个样本是否都有UMAP
+    if("umap" %in% names(sample1@reductions) && "umap" %in% names(sample2@reductions)) {
+      # 合并样本
+      merged_sample <- merge(sample1, sample2, 
+                             add.cell.ids = sample_pair,
+                             project = merged_name)
+      
+      # 如果合并后的样本需要重新运行UMAP，可以取消下面的注释
+      # merged_sample <- RunUMAP(merged_sample, dims = 1:30)
+      
+      # 保存合并后的样本
+      merged_samples[[merged_name]] <- merged_sample
+      
+      cat("Successfully merged", paste(sample_pair, collapse = " and "), "into", merged_name, "\n")
+    } else {
+      cat("Warning: UMAP not found for", paste(sample_pair, collapse = " or "), ", skipping merge\n")
+    }
+  } else {
+    cat("Warning: Not all samples found for", merged_name, ", skipping merge\n")
+  }
+}
+##修复4的errorrm
+rm(all_samples)
+
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+
+# 自定义颜色配置
+custom_colors <- c(
+  "Cortex" = "#a2d2e7",           # 蓝色
+  "Dividing Cell" = "#67a8cd",    # 浅蓝色
+  "Endodermis" = "#ffc17f",       # 黄色
+  "Epidermis" = "#cf9f88",        # 橙色
+  "Lateral Root" = "#6fb3a8",     # 绿色
+  "Meristem" = "#b3e19b",         # 浅绿色
+  "Pericycle" = "#50aa4b",        # 深绿色
+  "Phloem" = "#ff9d9f",           # 粉色
+  "QC" = "#f36569",               # 红色
+  "Root Cap" = "#3581b7",         # 蓝色
+  "Xylem" = "#cdb6da"             # 浅紫色
+)
+
+# 1. 为每个样本创建dimplot（包含REF）- 使用自定义颜色
+sample_names <- c("REF", "ABA1", "ABA2", "eBL1", "eBL2", "highTemp1", "highTemp2", 
+                  "IAA1", "IAA2", "lowTemp1", "lowTemp2", "MEJA1", "MEJA2", 
+                  "PEG1", "PEG2", "SA1", "SA2")
+
+# 创建包含REF的样本列表
+all_samples <- c(list(reference), hormone.list)
+names(all_samples) <- sample_names
+
+# 使用 cell_type 列进行分组
+group_by_col <- "cell_type"
+cat("Using", group_by_col, "for grouping\n")
+
+# 创建dimplot列表
+dimplot_list <- list()
+for(i in 1:length(all_samples)) {
+  sample_name <- sample_names[i]
+  
+  # 检查该样本是否有UMAP
+  if(!"umap" %in% names(all_samples[[i]]@reductions)) {
+    cat("Warning: No UMAP found for", sample_name, ", skipping...\n")
+    next
+  }
+  
+  # 检查是否有cell_type列
+  if(!group_by_col %in% colnames(all_samples[[i]]@meta.data)) {
+    cat("Warning: No", group_by_col, "found for", sample_name, ", using seurat_clusters\n")
+    current_group_col <- "seurat_clusters"
+  } else {
+    current_group_col <- group_by_col
+  }
+  
+  # 创建dimplot - 添加自定义颜色
+  p <- DimPlot(all_samples[[i]], 
+               reduction = "umap", 
+               group.by = current_group_col,
+               label = TRUE, 
+               label.size = 3,
+               pt.size = 0.5,
+               cols = custom_colors) +  # 添加自定义颜色
+    ggtitle(sample_name) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, size = 14))
+  
+  dimplot_list[[i]] <- p
+  
+  cat("Created dimplot for", sample_name, "\n")
+}
+
+# 移除NULL元素（如果有的话）
+dimplot_list <- dimplot_list[!sapply(dimplot_list, is.null)]
+
+# 2. 组合显示所有dimplot
+if(length(dimplot_list) > 0) {
+  # 计算合适的行列数
+  n_plots <- length(dimplot_list)
+  n_cols <- 4
+  n_rows <- ceiling(n_plots / n_cols)
+  
+  combined_plot <- wrap_plots(dimplot_list, ncol = n_cols)
+  
+  # 保存组合图
+  ggsave("all_samples_with_ref_dimplot_custom_colors.pdf", combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows)
+  ggsave("all_samples_with_ref_dimplot_custom_colors.png", combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows, dpi = 300)
+  
+  cat("Saved individual sample plots with custom colors\n")
+}
+
+# 3. 合并样本功能
+# 定义需要合并的样本对
+merge_pairs <- list(
+  "ABA" = c("ABA1", "ABA2"),
+  "eBL" = c("eBL1", "eBL2"), 
+  "highTemp" = c("highTemp1", "highTemp2"),
+  "IAA" = c("IAA1", "IAA2"),
+  "lowTemp" = c("lowTemp1", "lowTemp2"),
+  "MEJA" = c("MEJA1", "MEJA2"),
+  "PEG" = c("PEG1", "PEG2"),
+  "SA" = c("SA1", "SA2")
+)
+
+# 创建合并后的样本对象
+merged_samples <- list()
+merged_samples[["REF"]] <- all_samples[["REF"]]  # 添加参考样本
+
+for(merged_name in names(merge_pairs)) {
+  sample_pair <- merge_pairs[[merged_name]]
+  
+  # 检查两个样本是否都存在
+  if(all(sample_pair %in% names(all_samples))) {
+    # 获取两个样本
+    sample1 <- all_samples[[sample_pair[1]]]
+    sample2 <- all_samples[[sample_pair[2]]]
+    
+    # 检查两个样本是否都有UMAP
+    if("umap" %in% names(sample1@reductions) && "umap" %in% names(sample2@reductions)) {
+      # 合并样本
+      merged_sample <- merge(sample1, sample2, 
+                             add.cell.ids = sample_pair,
+                             project = merged_name)
+      
+      # 如果合并后的样本需要重新运行UMAP，可以取消下面的注释
+      # merged_sample <- RunUMAP(merged_sample, dims = 1:30)
+      
+      # 保存合并后的样本
+      merged_samples[[merged_name]] <- merged_sample
+      
+      cat("Successfully merged", paste(sample_pair, collapse = " and "), "into", merged_name, "\n")
+    } else {
+      cat("Warning: UMAP not found for", paste(sample_pair, collapse = " or "), ", skipping merge\n")
+    }
+  } else {
+    cat("Warning: Not all samples found for", merged_name, ", skipping merge\n")
+  }
+}
+
+# 4. 为合并后的样本创建dimplot
+merged_dimplot_list <- list()
+merged_sample_names <- names(merged_samples)
+
+for(i in 1:length(merged_samples)) {
+  sample_name <- merged_sample_names[i]
+  
+  # 检查该样本是否有UMAP
+  if(!"umap" %in% names(merged_samples[[i]]@reductions)) {
+    cat("Warning: No UMAP found for merged", sample_name, ", skipping...\n")
+    next
+  }
+  
+  # 检查是否有cell_type列
+  if(!group_by_col %in% colnames(merged_samples[[i]]@meta.data)) {
+    cat("Warning: No", group_by_col, "found for merged", sample_name, ", using seurat_clusters\n")
+    current_group_col <- "seurat_clusters"
+  } else {
+    current_group_col <- group_by_col
+  }
+  
+  # 创建dimplot
+  p <- DimPlot(merged_samples[[i]], 
+               reduction = "umap", 
+               group.by = current_group_col,
+               label = TRUE, 
+               label.size = 3,
+               pt.size = 0.5,
+               cols = custom_colors) +  # 使用自定义颜色
+    ggtitle(sample_name) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, size = 14))
+  
+  merged_dimplot_list[[i]] <- p
+  
+  cat("Created dimplot for merged", sample_name, "\n")
+}
+
+# 移除NULL元素
+merged_dimplot_list <- merged_dimplot_list[!sapply(merged_dimplot_list, is.null)]
+
+# 5. 组合显示合并后的样本dimplot
+if(length(merged_dimplot_list) > 0) {
+  # 计算合适的行列数
+  n_plots <- length(merged_dimplot_list)
+  n_cols <- 3  # 合并后样本较少，使用3列
+  n_rows <- ceiling(n_plots / n_cols)
+  
+  merged_combined_plot <- wrap_plots(merged_dimplot_list, ncol = n_cols)
+  
+  # 保存合并样本的组合图
+  ggsave("merged_samples_dimplot_custom_colors.pdf", merged_combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows)
+  ggsave("merged_samples_dimplot_custom_colors.png", merged_combined_plot, 
+         width = 5 * n_cols, height = 4 * n_rows, dpi = 300)
+  
+  cat("Saved merged sample plots with custom colors\n")
+}
+
+# 6. 创建一个带图例的参考图
+if("REF" %in% names(all_samples)) {
+  if("umap" %in% names(all_samples[["REF"]]@reductions)) {
+    legend_plot <- DimPlot(all_samples[["REF"]], 
+                           reduction = "umap", 
+                           group.by = group_by_col,
+                           label = TRUE, 
+                           label.size = 3,
+                           pt.size = 0.5,
+                           cols = custom_colors) +
+      ggtitle("Cell Type Legend") +
+      theme(plot.title = element_text(hjust = 0.5, size = 16),
+            legend.text = element_text(size = 12))
+    
+    ggsave("cell_type_legend.pdf", legend_plot, width = 10, height = 8)
+    ggsave("cell_type_legend.png", legend_plot, width = 10, height = 8, dpi = 300)
+    
+    cat("Saved legend plot\n")
+  }
+}
+
+cat("All plots completed!\n")
+###修改更好的可视化 修复9个图问题
+# 加载必要的包
+library(Seurat)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+
+# 定义颜色配置
+custom_colors <- c(
+  "Cortex" = "#a2d2e7",           # 蓝色
+  "Dividing Cell" = "#67a8cd",    # 浅蓝色
+  "Endodermis" = "#ffc17f",       # 黄色
+  "Epidermis" = "#cf9f88",        # 橙色
+  "Lateral Root" = "#6fb3a8",     # 绿色
+  "Meristem" = "#b3e19b",         # 浅绿色
+  "Pericycle" = "#50aa4b",        # 深绿色
+  "Phloem" = "#ff9d9f",           # 粉色
+  "QC" = "#f36569",               # 红色
+  "Root Cap" = "#3581b7",         # 蓝色
+  "Xylem" = "#cdb6da"             # 浅紫色
+)
+
+# 定义用于分组的列名（通常是细胞类型）
+group_by_col <- "cell_type"  # 或者使用 "seurat_clusters" 如果没有cell_type
+
+# 合并所有样本到一个列表中以便查找
+all_samples <- c(list("REF" = reference), hormone.list)
+
+# 定义要合并的样本对
+merge_pairs <- list(
+  "ABA" = c("ABA1", "ABA2"),
+  "eBL" = c("eBL1", "eBL2"),
+  "highTemp" = c("highTemp1", "highTemp2"),
+  "IAA" = c("IAA1", "IAA2"),
+  "lowTemp" = c("lowTemp1", "lowTemp2"),
+  "MEJA" = c("MEJA1", "MEJA2"),
+  "PEG" = c("PEG1", "PEG2"),
+  "SA" = c("SA1", "SA2")
+)
+
+# 修复现有的合并样本，添加UMAP信息
+cat("Fixing UMAP information for merged samples...\n")
+
+for(merged_name in names(merge_pairs)) {
+  if(merged_name %in% names(merged_samples)) {
+    sample_pair <- merge_pairs[[merged_name]]
+    
+    # 获取原始样本
+    sample1 <- all_samples[[sample_pair[1]]]
+    sample2 <- all_samples[[sample_pair[2]]]
+    
+    if("umap" %in% names(sample1@reductions) && "umap" %in% names(sample2@reductions)) {
+      # 获取合并后的样本
+      merged_sample <- merged_samples[[merged_name]]
+      
+      # 手动合并UMAP坐标
+      umap1 <- sample1@reductions$umap@cell.embeddings
+      umap2 <- sample2@reductions$umap@cell.embeddings
+      
+      # 为UMAP坐标添加细胞ID前缀
+      rownames(umap1) <- paste0(sample_pair[1], "_", rownames(umap1))
+      rownames(umap2) <- paste0(sample_pair[2], "_", rownames(umap2))
+      
+      # 合并UMAP坐标
+      combined_umap <- rbind(umap1, umap2)
+      
+      # 确保UMAP坐标与合并后样本的细胞顺序匹配
+      if(all(colnames(merged_sample) %in% rownames(combined_umap))) {
+        combined_umap <- combined_umap[colnames(merged_sample), ]
+        
+        # 创建新的UMAP reduction对象
+        merged_sample[["umap"]] <- CreateDimReducObject(
+          embeddings = combined_umap,
+          key = "UMAP_",
+          assay = DefaultAssay(merged_sample)
+        )
+        
+        # 更新合并样本
+        merged_samples[[merged_name]] <- merged_sample
+        
+        cat("Fixed UMAP for", merged_name, "\n")
+      } else {
+        cat("Warning: Cell names don't match for", merged_name, "\n")
+      }
+    }
+  }
+}
+
+# 创建DimPlot图形
+merged_dimplot_list <- list()
+
+for(sample_name in names(merged_samples)) {
+  sample_obj <- merged_samples[[sample_name]]
+  
+  # 检查该样本是否有UMAP
+  if(!"umap" %in% names(sample_obj@reductions)) {
+    cat("Warning: No UMAP found for", sample_name, ", skipping...\n")
+    next
+  }
+  
+  # 检查是否有cell_type列
+  if(!group_by_col %in% colnames(sample_obj@meta.data)) {
+    cat("Warning: No", group_by_col, "found for", sample_name, ", using seurat_clusters\n")
+    current_group_col <- "seurat_clusters"
+  } else {
+    current_group_col <- group_by_col
+  }
+  
+  # 创建dimplot
+  p <- DimPlot(sample_obj, 
+               reduction = "umap", 
+               group.by = current_group_col,
+               label = FALSE,  # 关闭标签避免拥挤
+               pt.size = 0.3,
+               cols = custom_colors) +  # 使用自定义颜色
+    ggtitle(sample_name) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+          axis.title = element_text(size = 10),
+          axis.text = element_text(size = 8))
+  
+  merged_dimplot_list[[sample_name]] <- p
+  
+  cat("Created dimplot for", sample_name, "\n")
+}
+
+# 排列和显示图形
+if(length(merged_dimplot_list) > 0) {
+  # 按照指定顺序排列图形
+  plot_order <- c("REF", "ABA", "eBL", "highTemp", 
+                  "IAA", "lowTemp", "MEJA", "PEG", "SA")
+  
+  # 重新排序图形 - 只包含存在的图形
+  ordered_plots <- list()
+  for(name in plot_order) {
+    if(name %in% names(merged_dimplot_list)) {
+      ordered_plots[[length(ordered_plots) + 1]] <- merged_dimplot_list[[name]]
+    }
+  }
+  
+  # 创建3x3网格布局
+  if(length(ordered_plots) > 0) {
+    grid_plot <- do.call(grid.arrange, c(ordered_plots, ncol = 3))
+    
+    # 保存图形
+    ggsave("merged_samples_dimplot.pdf", grid_plot, width = 12, height = 12, dpi = 300)
+    ggsave("merged_samples_dimplot.png", grid_plot, width = 12, height = 12, dpi = 300)
+    
+    print(grid_plot)
+    cat("Plots saved as merged_samples_dimplot.pdf and .png\n")
+  } else {
+    cat("No plots to display\n")
+  }
+} else {
+  cat("No valid plots created\n")
+}
+
+# 打印合并结果摘要
+cat("\n=== 合并结果摘要 ===\n")
+cat("成功合并的样本数量:", length(merged_samples), "\n")
+for(name in names(merged_samples)) {
+  n_cells <- ncol(merged_samples[[name]])
+  has_umap <- "umap" %in% names(merged_samples[[name]]@reductions)
+  cat(name, ":", n_cells, "个细胞, UMAP:", has_umap, "\n")
+}
+cat("Successfully transferred UMAP coordinates to merged object\n")
+# 保存为RData文件
+save(merged_samples, file = "merged_samples.RData")
+cat("合并样本已保存为 merged_samples.RData\n")
+
+# 也可以单独保存为RDS文件（更推荐，文件更小）
+saveRDS(merged_samples, file = "merged_samples.rds")
+cat("合并样本已保存为 merged_samples.rds\n")
