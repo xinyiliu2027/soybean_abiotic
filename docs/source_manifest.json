@@ -1,0 +1,220 @@
+[
+  {
+    "path": "examples/doubletfinder_flower_reference.R",
+    "source": "Figure 1 document",
+    "start_line": 1,
+    "end_line": 39,
+    "description": "Strawberry flower doublet example from the source; not a soybean analysis entry point.",
+    "changes": [
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "dc1d41361e88fba08200049aa0dab36e857433b14ece80970132984ae74baf94"
+  },
+  {
+    "path": "scripts/figure1/01_marker_dotplot.R",
+    "source": "Figure 1 document",
+    "start_line": 40,
+    "end_line": 280,
+    "description": "Requires an existing Gm_CK_integrated object.",
+    "changes": [
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "f0c65549ecd17129f3d9c32fb9beeaf62d43eddf6d5d3ade47d2f81f8f08c0c1"
+  },
+  {
+    "path": "scripts/figure1/02_label_transfer.R",
+    "source": "Figure 1 document",
+    "start_line": 281,
+    "end_line": 546,
+    "description": "Requires preloaded Gm_* samples and reference_renamed.qs.",
+    "changes": [
+      "Guarded temporary-object cleanup and ambiguous DoubletFinder columns; removed redundant rm(SA1)",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "aad9a781e1641d9dc5cf1cb9845f7e7ff9a4bc79fab6f236c7b1d74c19ab866a"
+  },
+  {
+    "path": "scripts/figure1/03_merge_and_umap.R",
+    "source": "Figure 1 document",
+    "start_line": 547,
+    "end_line": 744,
+    "description": "Continues the label-transfer session; retains the original diagnostic output.",
+    "changes": [
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "d328d9d36cff8a6dd2bbc04801417f59c984a7aa2582723091e360a050b0d6f6"
+  },
+  {
+    "path": "scripts/figure1/04_sample_colors_and_merge.R",
+    "source": "Figure 1 document",
+    "start_line": 745,
+    "end_line": 926,
+    "description": "Continues the preceding session and creates merged_samples.",
+    "changes": [
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "7a1256ec3842d3418dd23a96109ad18968856a4a4292fa83c3c09d05dab9a022"
+  },
+  {
+    "path": "scripts/figure1/05_group_umap.R",
+    "source": "Figure 1 document",
+    "start_line": 927,
+    "end_line": 1147,
+    "description": "Grouped plotting variant that continues the preceding session.",
+    "changes": [
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "0d7ed9b6c9da24f9282199efb2d7cb8839bdb64a0b4a47f65fb88df136d0c440"
+  },
+  {
+    "path": "scripts/figure1/06_combined_umap.R",
+    "source": "Figure 1 document",
+    "start_line": 1148,
+    "end_line": 1321,
+    "description": "Continues the preceding session with combined plots and coordinate repair.",
+    "changes": [
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "9762d065f663867fcbd36e24d65725fdbdf7d37cba7415c994c67dc8c2cd92ab",
+    "packaged_sha256": "64a02092d93ec3ecbc3651ccac2c68969a2bc8baef0623c88955841ad3430673"
+  },
+  {
+    "path": "scripts/figure2/01_pseudobulk_de.R",
+    "source": "Figure 2 document",
+    "start_line": 1,
+    "end_line": 474,
+    "description": "Standalone script requiring a merged expression RDS and CK RData.",
+    "changes": [
+      "3 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Closed the treatment loop truncated at the end of the source section",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "4f1bd851e5b0f2ee5f3e96c64fb1674d5a51b3f314a1805c54deac4aec8e3d74",
+    "packaged_sha256": "f025df59e04bbdc02d677d516a3b14029486f649b287d7b2216890870cd1545a"
+  },
+  {
+    "path": "scripts/figure2/02_perturbation_index.R",
+    "source": "Figure 2 document",
+    "start_line": 475,
+    "end_line": 1718,
+    "description": "Standalone script requiring a CK2-complete RDS and an external combined DEG table.",
+    "changes": [
+      "4 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "4f1bd851e5b0f2ee5f3e96c64fb1674d5a51b3f314a1805c54deac4aec8e3d74",
+    "packaged_sha256": "d6a8f50fee4c7375cf9db5f2bd0ba079040f75503e2b98a9eea1b4df2d9d79b3"
+  },
+  {
+    "path": "legacy/figure3_cold_peg_exploratory.R",
+    "source": "Figure 3 document",
+    "start_line": 1,
+    "end_line": 284,
+    "description": "Early exploratory fragment ending at the Step 7 heading; not the main workflow.",
+    "changes": [
+      "2 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "d5b9152d3ae79032ddfec49f8325396650aac671520efcebd705dabf35ee938c",
+    "packaged_sha256": "a2691ee2138f7f5247e9eedc5a1c989404d5f732327b8e99db9003c2bff05a4d"
+  },
+  {
+    "path": "scripts/figure3/01_ck_reference_states.R",
+    "source": "Figure 3 document",
+    "start_line": 285,
+    "end_line": 1142,
+    "description": "Standalone script requiring raw RNA counts for CK and three treatments.",
+    "changes": [
+      "2 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Final completion message uses OUT, not output_dir from the unrelated earlier snippet",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "d5b9152d3ae79032ddfec49f8325396650aac671520efcebd705dabf35ee938c",
+    "packaged_sha256": "c02da0a307ceba35d0242022c69b40dc9eb1b6f60e22818e48acb61977414ac2"
+  },
+  {
+    "path": "scripts/figure3/02_stage_specific_candidates.R",
+    "source": "Figure 3 document",
+    "start_line": 1143,
+    "end_line": 1513,
+    "description": "Standalone script requiring stage-level and whole-cell-type DEG tables.",
+    "changes": [
+      "1 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Replaced a historical run-specific stage DEG path with a required environment variable",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "d5b9152d3ae79032ddfec49f8325396650aac671520efcebd705dabf35ee938c",
+    "packaged_sha256": "c2d0ce5e956c7a3d9e27c7ea7058b1a7364794180dd0cd5c2d7605b7f0985f78"
+  },
+  {
+    "path": "scripts/figure4/01_consensus_wgcna.R",
+    "source": "Figure 4 document",
+    "start_line": 1,
+    "end_line": 1823,
+    "description": "Standalone script requiring a CK2-complete RDS; a legacy module table supports optional comparisons.",
+    "changes": [
+      "1 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "64114a9d70cf974cdf6f6f75ca7398fdba1771f4af1772b0b909ddb6ada9ae53",
+    "packaged_sha256": "fd83038f139b8952f127937aa1525a0b0924152cc786378ee6090656689e3ed1"
+  },
+  {
+    "path": "scripts/figure4/02_module_gene_summary.R",
+    "source": "Figure 4 document",
+    "start_line": 1824,
+    "end_line": 1988,
+    "description": "Reads consensus_network_object.rds produced by script 01.",
+    "changes": [
+      "1 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "64114a9d70cf974cdf6f6f75ca7398fdba1771f4af1772b0b909ddb6ada9ae53",
+    "packaged_sha256": "6714c42f78d5edb10cd37b60e57990fe3c5dc6244b7eb8eb86f213f663e1d5ab"
+  },
+  {
+    "path": "scripts/figure4/03_module_umap_go.R",
+    "source": "Figure 4 document",
+    "start_line": 1989,
+    "end_line": 2173,
+    "description": "Reads the module-scored RDS and GO outputs from script 01.",
+    "changes": [
+      "1 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "64114a9d70cf974cdf6f6f75ca7398fdba1771f4af1772b0b909ddb6ada9ae53",
+    "packaged_sha256": "baae68934946f835cc2b6e46e6efaa5e40c16e48341ab1b4a4e986bd85d46991"
+  },
+  {
+    "path": "scripts/figure4/04_tf_regulon_heatmap.R",
+    "source": "Figure 4 document",
+    "start_line": 2174,
+    "end_line": 2687,
+    "description": "Reads script 01 outputs and infers candidate regulons using GENIE3.",
+    "changes": [
+      "1 project path literals parameterized via SOYBEAN_PROJECT_ROOT",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "64114a9d70cf974cdf6f6f75ca7398fdba1771f4af1772b0b909ddb6ada9ae53",
+    "packaged_sha256": "4cf71477e9adc4fa8f682a966d2b783a5722e82efc4fb681bd6dbecb079f5a9f"
+  },
+  {
+    "path": "scripts/rna_velocity/plot_velocity.py",
+    "source": "RNA velocity document",
+    "start_line": 1,
+    "end_line": 251,
+    "description": "Standalone script requiring h5ad and a cell-metadata CSV with UMAP coordinates.",
+    "changes": [
+      "Added CLI paths, strict metadata checks, finite UMAP validation, and missing velocity-graph calculation",
+      "Localized comments and user-facing strings into English; retained data-matching aliases via Unicode escapes"
+    ],
+    "source_docx_sha256": "37aa2159e28b9346477aecbec4587680847f803a42722a872d4be5d000c36d6b",
+    "packaged_sha256": "0318dd19c26e313df232b4c17aef76bb4adc4fc22da09fc55ce43e4d91aab1c8"
+  }
+]
