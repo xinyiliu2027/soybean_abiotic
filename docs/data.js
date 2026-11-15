@@ -27,7 +27,7 @@ export function csvCell(v){return '"'+String(v).replaceAll('"','""')+'"';}
 export function validateSummaryIndex(d){
  if(!d||d.schema_version!==1||d.type!=='gene_summary_index'||!Array.isArray(d.strata)||!d.strata.length||!d.gene_files||!Object.keys(d.gene_files).length)throw Error('Invalid expression_index.json.');
  for(const s of d.strata)if(typeof s.group!=='string'||typeof s.celltype!=='string'||!Number.isInteger(s.n_cells)||s.n_cells<1)throw Error('Invalid summary strata or cell counts.');
- for(const path of Object.values(d.gene_files))if(typeof path!=='string'||!/^gene_summaries\/[A-Za-z0-9_.-]+\.json$/.test(path))throw Error('Invalid gene summary file path.');
+ for(const path of Object.values(d.gene_files))if(typeof path!=='string'||!/^gene_summaries\/[A-Za-z0-9_.-]+\.json(?:\.gz)?$/.test(path))throw Error('Invalid gene summary file path.');
  return d;
 }
 export function validateGeneSummary(record,index,ncells=null){
