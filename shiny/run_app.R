@@ -1,0 +1,7 @@
+args <- commandArgs(trailingOnly = FALSE)
+script_arg <- grep("^--file=", args, value = TRUE)
+app_dir <- if (length(script_arg)) dirname(normalizePath(sub("^--file=", "", script_arg[1]), mustWork = TRUE)) else normalizePath(".")
+if (!requireNamespace("shiny", quietly = TRUE)) stop("Run Rscript install_packages.R first.")
+port <- suppressWarnings(as.integer(Sys.getenv("PORT", "3838")))
+if (is.na(port) || port < 1L || port > 65535L) stop("PORT must be between 1 and 65535.")
+shiny::runApp(appDir = app_dir, host = Sys.getenv("SHINY_HOST", "127.0.0.1"), port = port, launch.browser = interactive())
