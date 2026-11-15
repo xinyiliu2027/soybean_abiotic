@@ -1,5 +1,5 @@
-export const GENES=['Glyma.05G103600','Glyma.15G040200','Glyma.20G176100','Glyma.08G163500','Glyma.11G147700'];
-export const LABELS={'Glyma.05G103600':'Cortex-1','Glyma.15G040200':'GmHTA12','Glyma.08G163500':'GmAPL-1','Glyma.11G147700':'Epidermis marker'};
+export const GENES=["Glyma.05G103600","Glyma.15G040200","Glyma.12G234200","Glyma.08G163500","Glyma.10G022500"];
+export const LABELS={"Glyma.05G103600":"Cortex-1","Glyma.15G040200":"GmHTA12","Glyma.12G234200":"GmTPS1","Glyma.08G163500":"GmAPL-1","Glyma.10G022500":"Glyma.10G022500"};
 export function validateAtlas(d){
  if(!d||d.schema_version!==1||!Array.isArray(d.cells)||!d.cells.length||!d.expression||typeof d.expression!=='object')throw Error('Expected schema_version=1, a nonempty cells array, and an expression object.');
  if(d.cells.length>500000)throw Error('This browser viewer supports up to 500,000 cells. Export treatments separately for larger datasets.');

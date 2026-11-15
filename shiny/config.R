@@ -14,7 +14,7 @@ config <- list(
   celltype_col = NULL,
   df_column = NULL,
   feature_map = setNames(character(), character()),
-  default_genes = c("Glyma.05G103600", "Glyma.15G040200", "Glyma.20G176100", "Glyma.08G163500", "Glyma.11G147700"),
+  default_genes = c("Glyma.05G103600", "Glyma.15G040200", "Glyma.12G234200", "Glyma.08G163500", "Glyma.10G022500"),
   raster_dpi = 600L,
   seed = 42L
 )

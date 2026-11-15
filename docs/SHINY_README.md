@@ -4,7 +4,7 @@ Live website: https://xinyiliu2027.github.io/soybean_abiotic/
 
 The live dataset contains 106,762 real cells: CK (27,042), Heat (34,404), Cold (23,923), and PEG (21,393), across 11 cell types. All 42,479 RNA genes in the real Seurat assay are indexed by mean normalized expression and detection percentage in 44 treatment/cell-type strata. Enter a full Glyma ID and press Enter, or select a matching search result.
 
-Four requested markers have single-cell UMAP data: Glyma.05G103600, Glyma.15G040200, Glyma.08G163500, and Glyma.11G147700. Glyma.20G176100 is absent from the actual RNA assay; see gene_match_report.csv. It is shown as unavailable, never replaced by a different marker. All-gene single-cell UMAP export was estimated at 6,141 MB, so the static site provides all-gene summaries and the four marker UMAPs. Use Shiny for arbitrary-gene single-cell UMAP from the RDS.
+All five confirmed in situ genes have single-cell UMAP data: Glyma.05G103600 (Cortex-1), Glyma.15G040200 (GmHTA12), Glyma.12G234200 (GmTPS1), Glyma.08G163500 (GmAPL-1), and Glyma.10G022500. All five were checked against the RNA index and their single-cell vectors reproduce the all-gene expression summaries within 1e-5. All-gene single-cell UMAP export was estimated at 6,141 MB, so the static site provides all-gene summaries and these five marker UMAPs. Use Shiny for arbitrary-gene single-cell UMAP from the RDS.
 
 The website also includes 97,265 actual filtered DE rows for Heat/Cold/PEG across 17,797 distinct genes. These are gene-level contrasts and detection frequencies, not an all-gene single-cell expression matrix. The original REF label and local FDR are retained.
 
@@ -69,4 +69,4 @@ Expression UMAPs do not establish shared stress responses. Import a CSV with `ge
 
 ## Validation limits
 
-The exporter was run successfully against the real RDS in server RStudio. All 42,479 summary records have been checked for alignment, finite means and valid percentages; the four exported single-cell vectors reproduce their summaries within 1e-6. JavaScript and pure-R filtering checks pass. The full Shiny application still needs runtime validation with its packages on the data server.
+The exporter was run successfully against the real RDS in server RStudio. All 42,479 summary records have been checked for alignment, finite means and valid percentages; the five confirmed single-cell vectors reproduce their summaries within 1e-5. JavaScript and pure-R filtering checks pass. The full Shiny application still needs runtime validation with its packages on the data server.

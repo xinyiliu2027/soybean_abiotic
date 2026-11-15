@@ -4,7 +4,7 @@
 
 MERGED_RDS <- "/data01/liuxy/Project/CK2_added_v3_Results/seurat_obj_with_CK2_v3.rds"
 OUT_DIR <- "/data01/liuxy/Project/soybean_abiotic_exports"
-GENES <- c("Glyma.05G103600", "Glyma.15G040200", "Glyma.20G176100", "Glyma.08G163500", "Glyma.11G147700")
+GENES <- c("Glyma.05G103600", "Glyma.15G040200", "Glyma.12G234200", "Glyma.08G163500", "Glyma.10G022500")
 EXPORT_GROUPS <- c("CK", "Heat", "Cold", "PEG") # Set c("CK") for CK-only marker plots.
 ASSAY <- "RNA"
 GROUP_COL <- NULL    # e.g. "Group1" or "condition"; set if inference is ambiguous.
