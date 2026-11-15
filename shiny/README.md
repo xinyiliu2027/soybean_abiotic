@@ -2,13 +2,15 @@
 
 Live website: https://xinyiliu2027.github.io/soybean_abiotic/
 
-The initial live dataset now contains real CK (27,042), Heat (34,404), Cold (23,923) and PEG (21,393) cells: 106,762 cells across 11 cell types. The supplied atlas contains five single-cell expression vectors: Glyma.05G103600, Glyma.15G040200, Glyma.12G234200, Glyma.08G163500 and Glyma.10G022500. It does not contain the requested Glyma.20G176100 or Glyma.11G147700. Missing vectors are displayed as unavailable rather than replaced with another gene.
+The live dataset contains 106,762 real cells: CK (27,042), Heat (34,404), Cold (23,923), and PEG (21,393), across 11 cell types. All 42,479 RNA genes in the real Seurat assay are indexed by mean normalized expression and detection percentage in 44 treatment/cell-type strata. Enter a full Glyma ID and press Enter, or select a matching search result.
+
+Four requested markers have single-cell UMAP data: Glyma.05G103600, Glyma.15G040200, Glyma.08G163500, and Glyma.11G147700. Glyma.20G176100 is absent from the actual RNA assay; see gene_match_report.csv. It is shown as unavailable, never replaced by a different marker. All-gene single-cell UMAP export was estimated at 6,141 MB, so the static site provides all-gene summaries and the four marker UMAPs. Use Shiny for arbitrary-gene single-cell UMAP from the RDS.
 
 The website also includes 97,265 actual filtered DE rows for Heat/Cold/PEG across 17,797 distinct genes. These are gene-level contrasts and detection frequencies, not an all-gene single-cell expression matrix. The original REF label and local FDR are retained.
 
 ## Recommended first step: export from server RStudio
 
-The website is already interactive. You do not need to rebuild it in Shiny to inspect the five selected genes. It needs UMAP coordinates, annotations, treatment labels and selected normalized RNA expression, rather than the entire Seurat RDS.
+The published website loads its real data automatically. Use the steps below only when importing a new dataset. It needs UMAP coordinates, annotations, treatment labels and selected normalized RNA expression, rather than the entire Seurat RDS.
 
 1. Open an RStudio session on the Linux server that can read `/data01`. A Windows RStudio session cannot read this path unless the data have been transferred or mounted.
 2. Save `Export_Seurat_Atlas.R` from the website to that server, or transfer the downloaded script to the server using the RStudio Files pane / your normal file transfer method.
@@ -28,11 +30,11 @@ OUT_DIR <- "/data01/liuxy/Project/soybean_abiotic_exports"
 4. Download `/data01/liuxy/Project/soybean_abiotic_exports/atlas.json` from the server to your computer.
 5. On the website, select **Import atlas JSON** and choose that file. CK is selected by default. The treatment menu contains the groups actually exported; choose Heat, Cold or PEG to browse their expression.
 
-The default export contains the five specified in situ genes and all recognized CK/Heat/Cold/PEG cells. The script uses existing UMAP coordinates and normalized RNA data; it does not fit UMAP or infer DE results from a scatter plot. It retains all selected cells without random subsampling.
+The default export checks the five requested in situ genes, exports those present in RNA, reports absent genes, and includes all recognized CK/Heat/Cold/PEG cells. The script uses existing UMAP coordinates and normalized RNA data; it does not fit UMAP or infer DE results from a scatter plot. It retains all selected cells without random subsampling.
 
 The updated exporter also writes `expression_index.json` and a `gene_summaries/` directory for all RNA genes. Each file contains a small batch of genes with mean expression and detection percentage for each treatment/cell-type stratum. Download the entire export directory from RStudio, extract it locally, then choose **Import expression folder** and select the folder containing `expression_index.json`, `atlas.json`, and `gene_summaries/`.
 
-Sparse single-cell vectors for arbitrary-gene UMAP are included when their estimated size is below the configured static-data budget. Larger transcriptomes still export all-gene summaries and the five selected single-cell vectors; use Shiny for arbitrary-gene UMAP in that case. A single huge dense JSON is not required.
+Sparse single-cell vectors for arbitrary-gene UMAP are included when their estimated size is below the configured static-data budget. Larger transcriptomes still export all-gene summaries and the available selected single-cell vectors; use Shiny for arbitrary-gene UMAP in that case. A single huge dense JSON is not required.
 
 If group detection stops, open `group_metadata_audit.csv` and `metadata_columns.csv` in the export directory. Set `GROUP_COL` to the real treatment column, and add exact sample mappings to `SAMPLE_GROUP_MAP` when sample IDs are coded. Conflicting or missing CK labels stop the export; the full merged object is never silently treated as CK. Check `gene_match_report.csv` for missing or ambiguous genes.
 
@@ -63,8 +65,8 @@ GitHub Pages hosts the static HTML/JavaScript viewer; it cannot run an R Shiny p
 
 ## Differential expression and interpretation
 
-Expression UMAPs do not establish shared stress responses. Import a CSV with `gene,celltype,treatment,logFC,padj`, where treatment is Heat, Cold or PEG, logFC is log2FC, and each contrast is relative to CK. Prefer muscat / pseudobulk analyses that include biological replicates. Separate time points/models and keep FDR correction scopes explicit.
+Expression UMAPs do not establish shared stress responses. Import a CSV with `gene,celltype,treatment,logFC,padj`, where treatment is Heat, Cold or PEG, logFC is log2FC, and each contrast is relative to the documented reference. The bundled table uses REF; confirm its relationship to CK before interpreting CK-specific effects. Prefer muscat / pseudobulk analyses that include biological replicates. Separate time points/models and keep FDR correction scopes explicit.
 
 ## Validation limits
 
-The English interface, file formats, JavaScript logic, R syntax and pure-R scientific filtering helpers are checked locally. The server RDS remains inaccessible from this computer, so real metadata mappings and a full Seurat run still require confirmation on the data server.
+The exporter was run successfully against the real RDS in server RStudio. All 42,479 summary records have been checked for alignment, finite means and valid percentages; the four exported single-cell vectors reproduce their summaries within 1e-6. JavaScript and pure-R filtering checks pass. The full Shiny application still needs runtime validation with its packages on the data server.

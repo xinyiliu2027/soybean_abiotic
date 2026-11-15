@@ -36,7 +36,7 @@ write_csv <- function(x, name) utils::write.csv(x, file.path(OUT_DIR, name), row
 
 merged <- readRDS(MERGED_RDS)
 if (!inherits(merged, "Seurat")) stop("RDS must contain a Seurat object, not a list.")
-if (!ASSAY %in% Assays(merged)) stop("Assay not found: ", ASSAY)
+if (!ASSAY %in% names(merged@assays)) stop("Assay not found: ", ASSAY)
 md <- merged[[]]
 # Inspect these files if automatic column detection stops.
 write_csv(data.frame(column = colnames(md)), "metadata_columns.csv")
@@ -98,11 +98,11 @@ celltypes[is.na(celltypes) | !nzchar(celltypes)] <- "Unannotated"
 message("Cell type column: ", CELLTYPE_COL)
 
 if (is.null(UMAP_REDUCTION)) {
-  reductions <- intersect(c("umap", "ref.umap", "refumap"), Reductions(obj))
+  reductions <- intersect(c("umap", "ref.umap", "refumap"), names(obj@reductions))
   if (!length(reductions)) stop("No existing UMAP found. Set UMAP_REDUCTION; this script does not concatenate or refit sample UMAPs.")
   UMAP_REDUCTION <- reductions[1]
 }
-if (!UMAP_REDUCTION %in% Reductions(obj)) stop("UMAP reduction not found: ", UMAP_REDUCTION)
+if (!UMAP_REDUCTION %in% names(obj@reductions)) stop("UMAP reduction not found: ", UMAP_REDUCTION)
 emb <- Embeddings(obj, reduction = UMAP_REDUCTION)
 if (ncol(emb) < 2 || !all(colnames(obj) %in% rownames(emb))) stop("UMAP dimensions/cell names are invalid.")
 emb <- emb[colnames(obj), 1:2, drop = FALSE]
@@ -137,9 +137,11 @@ features <- vapply(GENES, function(g) {
   NA_character_
 }, character(1))
 write_csv(data.frame(gene = GENES, object_feature = unname(features)), "gene_match_report.csv")
-if (anyNA(features)) stop("Missing genes: ", paste(GENES[is.na(features)], collapse = ", "), ". See gene_match_report.csv; set exact FEATURE_MAP if necessary.")
-expr <- as.matrix(mat[unname(features), colnames(obj), drop = FALSE])
-rownames(expr) <- GENES
+if (anyNA(features)) warning("Missing genes: ", paste(GENES[is.na(features)], collapse = ", "), ". See gene_match_report.csv; set exact FEATURE_MAP if necessary.")
+available_genes <- GENES[!is.na(features)]
+if (!length(available_genes)) stop("No requested marker genes found in the RNA assay.")
+expr <- as.matrix(mat[unname(features[!is.na(features)]), colnames(obj), drop = FALSE])
+rownames(expr) <- available_genes
 if (any(!is.finite(expr)) || any(expr < 0)) stop("RNA data must be finite nonnegative normalized expression; do not use scaled residuals.")
 
 plot_data <- data.frame(cell = colnames(obj), UMAP1 = emb[, 1], UMAP2 = emb[, 2], CellType = celltypes, Group = "CK", stringsAsFactors = FALSE)
@@ -158,6 +160,10 @@ reference_plot <- ggplot(plot_data, aes(UMAP1, UMAP2, color = CellType)) +
 save_plot(reference_plot, "CK_celltypes", 7, 5)
 plots <- list(); summaries <- list()
 for (g in GENES) {
+  if (!g %in% available_genes) {
+    p <- ggplot() + annotate("text", x = 0, y = 0, label = "Absent from RNA assay") + labs(title = g) + theme_void()
+    plots[[g]] <- p; next
+  }
   d <- plot_data; d$Expression <- as.numeric(expr[g, ])
   positive <- d$Expression[d$Expression > 0]
   cap <- if (length(positive)) as.numeric(quantile(positive, .99, names = FALSE)) else 1
@@ -180,7 +186,7 @@ save_plot(combined, "CK_in_situ_5genes_with_celltypes_2x3", 15, 9)
 write_csv(do.call(rbind, summaries), "CK_gene_expression_summary.csv")
 
 cells <- data.frame(id = plot_data$cell, x = unname(plot_data$UMAP1), y = unname(plot_data$UMAP2), celltype = plot_data$CellType, group = "CK", stringsAsFactors = FALSE)
-expression <- setNames(lapply(GENES, function(g) I(as.numeric(expr[g, ]))), GENES)
+expression <- setNames(lapply(available_genes, function(g) I(as.numeric(expr[g, ]))), available_genes)
 atlas <- list(schema_version = 1L, source_label = basename(MERGED_RDS), created_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), expression_label = expression_label, reduction = UMAP_REDUCTION, celltype_column = CELLTYPE_COL, group_selection = group_source, cells = cells, expression = expression)
 jsonlite::write_json(atlas, file.path(OUT_DIR, "atlas.json"), dataframe = "rows", auto_unbox = TRUE, digits = 7, pretty = FALSE)
 write_csv(data.frame(cell = plot_data$cell, group = "CK", celltype = celltypes), "selected_CK_cells.csv")

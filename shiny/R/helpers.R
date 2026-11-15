@@ -44,7 +44,7 @@ select_ck_cells <- function(md, group_col = NULL, ck_values, ck_only_object = FA
   list(keep = rep(TRUE, nrow(md)), source = "explicit dedicated-CK-reference assumption")
 }
 
-match_features <- function(genes, available, feature_map = setNames(character(), character())) {
+match_features <- function(genes, available, feature_map = setNames(character(), character()), allow_missing = FALSE) {
   key <- function(x) tolower(sub("\\.[0-9]+$", "", x))
   setNames(vapply(genes, function(g) {
     if (g %in% names(feature_map)) {
@@ -54,6 +54,7 @@ match_features <- function(genes, available, feature_map = setNames(character(),
     }
     if (g %in% available) return(g)
     hit <- available[key(available) == key(g)]
+    if (!length(hit) && isTRUE(allow_missing)) return(NA_character_)
     if (length(hit) != 1L) stop(if (length(hit)) "Ambiguous feature: " else "Missing feature: ", g)
     hit
   }, character(1)), genes)
@@ -100,7 +101,7 @@ load_ck_atlas <- function(cfg) {
   if (!file.exists(cfg$rds)) stop("Configured CK RDS is not accessible to this R process: ", cfg$rds)
   obj <- readRDS(cfg$rds)
   if (!inherits(obj, "Seurat")) stop("RDS must contain a Seurat object.")
-  if (!cfg$assay %in% SeuratObject::Assays(obj)) stop("RNA assay missing.")
+  if (!cfg$assay %in% names(obj@assays)) stop("RNA assay missing.")
   md <- obj[[]]
   selected <- if (isTRUE(cfg$all_treatments)) resolve_project_groups(md, cfg$group_col, cfg$sample_group_map) else select_ck_cells(md, cfg$group_col, cfg$ck_values, cfg$ck_only_object)
   if (isTRUE(cfg$all_treatments)) selected$keep <- selected$keep & selected$groups %in% cfg$treatments
@@ -126,11 +127,11 @@ load_ck_atlas <- function(cfg) {
   labels[is.na(labels) | !nzchar(labels)] <- "Unannotated"
   reduction <- cfg$reduction
   if (is.null(reduction)) {
-    reductions <- intersect(c("umap", "ref.umap", "refumap"), SeuratObject::Reductions(obj))
+    reductions <- intersect(c("umap", "ref.umap", "refumap"), names(obj@reductions))
     if (!length(reductions)) stop("Existing UMAP not found; set reduction explicitly.")
     reduction <- reductions[1]
   }
-  if (!reduction %in% SeuratObject::Reductions(obj)) stop("Configured reduction not found.")
+  if (!reduction %in% names(obj@reductions)) stop("Configured reduction not found.")
   emb <- SeuratObject::Embeddings(obj, reduction = reduction)
   if (ncol(emb) < 2L || !all(colnames(obj) %in% rownames(emb))) stop("UMAP and cell identities do not match.")
   emb <- emb[colnames(obj), 1:2, drop = FALSE]
@@ -149,7 +150,7 @@ load_ck_atlas <- function(cfg) {
     }
   }
   mat <- mat[, colnames(obj), drop = FALSE]
-  features <- match_features(cfg$default_genes, rownames(mat), cfg$feature_map)
+  features <- match_features(cfg$default_genes, rownames(mat), cfg$feature_map, allow_missing = TRUE)
   message("Loaded ", ncol(mat), " selected cells; group source: ", selected$source, "; annotations: ", ct, "; reduction: ", reduction)
   list(cells = data.frame(id = colnames(obj), x = emb[, 1], y = emb[, 2], celltype = labels, group = unname(selected_groups[colnames(obj)]), stringsAsFactors = FALSE), matrix = mat, features = features,
        group_source = selected$source, celltype_column = ct, reduction = reduction,

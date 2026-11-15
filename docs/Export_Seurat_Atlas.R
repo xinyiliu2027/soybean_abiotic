@@ -49,7 +49,7 @@ map_groups <- function(x) unname(lookup[key(x)])
 
 obj <- readRDS(MERGED_RDS)
 if (!inherits(obj, "Seurat")) stop("RDS must contain a Seurat object.")
-if (!ASSAY %in% Assays(obj)) stop("Assay not found: ", ASSAY)
+if (!ASSAY %in% names(obj@assays)) stop("Assay not found: ", ASSAY)
 md <- obj[[]]
 write_csv(data.frame(column = names(md)), "metadata_columns.csv")
 candidates <- intersect(c("PublicationGroup", "group_id", "Group1", "Group", "group", "condition", "treatment", "Treatment", "orig.ident", "sample", "sample_id", "sample_name"), names(md))
@@ -97,11 +97,11 @@ if (is.null(CELLTYPE_COL)) {
 if (!CELLTYPE_COL %in% names(obj[[]])) stop("CELLTYPE_COL not found.")
 ct <- trimws(as.character(obj[[]][[CELLTYPE_COL]])); ct[is.na(ct) | !nzchar(ct)] <- "Unannotated"
 if (is.null(UMAP_REDUCTION)) {
-  reductions <- intersect(c("umap", "ref.umap", "refumap"), Reductions(obj))
+  reductions <- intersect(c("umap", "ref.umap", "refumap"), names(obj@reductions))
   if (!length(reductions)) stop("Existing UMAP not found. Set UMAP_REDUCTION.")
   UMAP_REDUCTION <- reductions[1]
 }
-if (!UMAP_REDUCTION %in% Reductions(obj)) stop("Configured UMAP reduction is missing.")
+if (!UMAP_REDUCTION %in% names(obj@reductions)) stop("Configured UMAP reduction is missing.")
 emb <- Embeddings(obj, reduction = UMAP_REDUCTION)
 if (ncol(emb) < 2L || !all(colnames(obj) %in% rownames(emb))) stop("UMAP/cell alignment is invalid.")
 emb <- emb[colnames(obj), 1:2, drop = FALSE]
@@ -132,7 +132,10 @@ features <- setNames(vapply(GENES, function(g) {
   hit
 }, character(1)), GENES)
 write_csv(data.frame(gene = GENES, object_feature = unname(features)), "gene_match_report.csv")
-if (anyNA(features)) stop("Missing genes: ", paste(names(features)[is.na(features)], collapse = ", "), ". See gene_match_report.csv.")
+if (anyNA(features)) warning("Missing genes: ", paste(names(features)[is.na(features)], collapse = ", "), ". See gene_match_report.csv.")
+GENES <- names(features)[!is.na(features)]
+features <- features[GENES]
+if (!length(GENES)) stop("None of the requested marker genes exists in the RNA assay. Inspect gene_match_report.csv.")
 expr <- as.matrix(mat[unname(features), colnames(obj), drop = FALSE]); rownames(expr) <- GENES
 if (any(!is.finite(expr)) || any(expr < 0)) stop("RNA expression must be finite and nonnegative; scaled residuals are not supported.")
 cells <- data.frame(id = colnames(obj), x = unname(emb[, 1]), y = unname(emb[, 2]), celltype = ct, group = groups, stringsAsFactors = FALSE)

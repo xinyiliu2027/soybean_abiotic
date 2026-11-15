@@ -62,14 +62,14 @@ server <- function(input, output, session) {
   })
   if (is.null(shared_atlas$load_error)) {
     all_features <- rownames(shared_atlas$matrix)
-    updateSelectizeInput(session, "gene", choices = all_features, selected = unname(shared_atlas$features[1]), server = TRUE)
+    updateSelectizeInput(session, "gene", choices = all_features, selected = if (any(!is.na(shared_atlas$features))) unname(shared_atlas$features[which(!is.na(shared_atlas$features))[1]]) else all_features[1], server = TRUE)
     updateSelectInput(session, "treatment", choices = intersect(c("CK", "Heat", "Cold", "PEG"), unique(shared_atlas$cells$group)), selected="CK")
     updateSelectInput(session, "celltype", choices = c("All cell types" = "all", setNames(sort(unique(shared_atlas$cells$celltype)), sort(unique(shared_atlas$cells$celltype)))))
   }
   for (i in seq_along(config$default_genes)) local({
     index <- i
     observeEvent(input[[paste0("preset_", index)]], {
-      a <- atlas(); updateSelectizeInput(session, "gene", selected = unname(a$features[index]))
+      a <- atlas(); if (is.na(a$features[index])) {showNotification(paste(config$default_genes[index], "is absent from the RNA assay."), type = "warning"); return(invisible(NULL))}; updateSelectizeInput(session, "gene", selected = unname(a$features[index]))
     })
   })
   selected_data <- reactive({req(input$gene, input$celltype); gene_frame(atlas(), input$gene, input$celltype, input$treatment)})
@@ -104,8 +104,8 @@ server <- function(input, output, session) {
   output$plot_png <- downloadHandler(filename = function() filename(".png"), content = function(file) ggplot2::ggsave(file, current_plot(), device = "png", width = 6, height = 5, dpi = config$raster_dpi, bg = "white"))
   output$cell_csv <- downloadHandler(filename = function() filename("_cells.csv"), content = function(file) utils::write.csv(selected_data(), file, row.names = FALSE, fileEncoding = "UTF-8"))
   overview <- reactive({
-    a <- atlas(); ref <- publication_plot(a, unname(a$features[1]), label = "CK cell types", point_size = input$pub_point, dpi = config$raster_dpi, mode = "celltype") + ggplot2::theme(legend.position = "none")
-    ps <- lapply(names(a$features), function(g) publication_plot(a, unname(a$features[g]), label = g, point_size = input$pub_point, q = as.numeric(input$quantile), dpi = config$raster_dpi))
+    a <- atlas(); ref <- publication_plot(a, rownames(a$matrix)[1], label = "CK cell types", point_size = input$pub_point, dpi = config$raster_dpi, mode = "celltype") + ggplot2::theme(legend.position = "none")
+    ps <- lapply(names(a$features), function(g) {if (is.na(a$features[g])) return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0, y = 0, label = "Absent from RNA assay") + ggplot2::labs(title = g) + ggplot2::theme_void()); publication_plot(a, unname(a$features[g]), label = g, point_size = input$pub_point, q = as.numeric(input$quantile), dpi = config$raster_dpi)})
     patchwork::wrap_plots(c(list(ref), ps), ncol = 3)
   })
   output$overview <- renderPlot({overview()}, res = 120)
@@ -113,7 +113,8 @@ server <- function(input, output, session) {
   output$overview_png <- downloadHandler(filename = "CK_five_genes_2x3.png", content = function(file) ggplot2::ggsave(file, overview(), device = "png", width = 15, height = 9, dpi = config$raster_dpi, bg = "white"))
   output$atlas_json <- downloadHandler(filename = "atlas.json", contentType = "application/json", content = function(file) {
     a <- atlas(); cells <- a$cells
-    expression <- setNames(lapply(names(a$features), function(g) I(as.numeric(a$matrix[a$features[g], ]))), names(a$features))
+    available <- a$features[!is.na(a$features)]
+    expression <- setNames(lapply(names(available), function(g) I(as.numeric(a$matrix[available[g], ]))), names(available))
     jsonlite::write_json(list(schema_version = 1L, source_label = basename(config$rds), created_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), expression_label = a$expression_label, cells = cells, expression = expression), file, dataframe = "rows", auto_unbox = TRUE, digits = 7)
   })
   de <- reactiveVal(shared_de); de_error <- reactiveVal(NULL)
